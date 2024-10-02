@@ -118,17 +118,19 @@ func moveColumns16to18After5(row []string) []string {
 	}
 
 	// Cut elements
-	cols20to22 := row[cutFrom : cutTo+1]
+	cutColumns := row[cutFrom : cutTo+1]
 
 	// Keep the part of the slice before the cut elements
 	// And also the part after the cut elements
-	sliceBefore := row[:cutFrom]
-	sliceAfter := row[cutTo+1:]
+	sliceBeforeInsert := row[:insertInto]
+	sliceAfterInsert := row[insertInto:cutFrom]
+	sliceAfterCut := row[cutTo+1:]
 
-	result := sliceBefore[:insertInto]
-	result = append(result, cols20to22...)
-	result = append(result, sliceBefore[:insertInto]...)
-	result = append(result, sliceAfter...)
+	result := make([]string, 0, len(row))
+	result = append(result, sliceBeforeInsert...)
+	result = append(result, cutColumns...)
+	result = append(result, sliceAfterInsert...)
+	result = append(result, sliceAfterCut...)
 
 	return result
 }
