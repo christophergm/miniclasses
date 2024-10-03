@@ -2,7 +2,7 @@ from collections import defaultdict
 import os
 import csv
 from typing import Any, Dict, List, Set
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from random import shuffle
 
 join_path = os.path.join
@@ -28,10 +28,26 @@ student_list_path =  join_path(data_dir,'student_list.csv')
 # CSV columns: id,session,name,interest_area,grade_min,grade_max,student_capacity_max
 course_list_path =  join_path(data_dir,'class_catalog.csv')
 
-class Interest(IntEnum): 
-  VERY = 0
-  MAYBE = 1
-  NOPE = 2
+class Interest(StrEnum): 
+  VERY = "Very Interested"
+  MAYBE = "Interested"
+  NOPE = "Not at all interested"
+
+  def from_label(level: str):
+    if level == Interest.VERY:
+      return Interest.VERY
+    elif level == Interest.MAYBE:
+      return Interest.MAYBE
+    else:
+      return Interest.NOPE
+
+  def to_label(self):
+    if self == Interest.VERY:
+      return "Very Interested"
+    elif self == Interest.MAYBE:
+      return "Interested"
+    else:
+      return "Not at all interested"
 
 
 class Preference:
@@ -40,12 +56,7 @@ class Preference:
 
   def __init__(self, area: str, level: str):
     self.area = area
-    if level == "Very Interested":
-      self.level = Interest.VERY
-    elif level == "Interested":
-      self.level = Interest.MAYBE
-    else:
-      self.level = Interest.NOPE
+    self.level = Interest.from_label(level)
   
   def __repr__(self) -> str:
     return f"{self.area} {self.level.name}"
@@ -54,12 +65,16 @@ class Preference:
 class Student:
   name: str
   grade: int
+  teacher: str
+  stream: str
   _preferences: List[Preference]
   preferences_by_interest: Dict[Interest, List[Preference]]
   
   def __init__(self, row: Dict[str, str]):
     self.name = f"{row['first_name']} {row['last_name']}"
     self.grade = int(row['grade'])
+    self.teacher = row['teacher']
+    self.stream = row['stream']
 
   @property
   def preferences(self):
@@ -98,6 +113,7 @@ class Student:
 
 
 class Course:
+  id: str
   name: str
   area: str
   grade_min: int
@@ -107,6 +123,7 @@ class Course:
   students: List[Student]
   
   def __init__(self, row: Dict[str, str]):
+    self.id = row['id']
     self.name = row['name']
     self.area = row['interest_area']
     self.grade_min = int(row['grade_min'])
@@ -195,6 +212,7 @@ with open(student_list_path) as csvfile:
 
 # Finally, read in all the courses.
 DEFAULT_COURSE = Course({
+  "id": "",
   "name": "Fallback",
   "interest_area": "none",
   "grade_min": 0,
@@ -242,8 +260,30 @@ for student in students:
   course = assign_student(student)
   print(f"Assigning {student} to {course}")
 
-# And we're done.  Now we just need to print out the courses!
+# And we're done.
+# Print out the assignments for debugging.
+print()
+print("Final Assignments")
 for course in courses:
   print(f"{course.name} ({len(course.students)}/{course.max_capacity})")
   for student in course.students:
     print(f"- {student} ({student.interest_in_course(course).name})")
+
+# Finally write out the assignments as a CSV
+with open("final_assignments.csv", "w") as csvfile:
+  fields = ["class_name","class_session","class_id","student_full_name","student_grade","student_teacher","student_stream","student_interest"]
+  writer = csv.DictWriter(csvfile, fields)
+
+  writer.writeheader()
+  for course in courses:
+    for student in course.students:
+      writer.writerow({
+        "class_name": course.name,
+        "class_session": CURRENT_SESSION,
+        "class_id": course.id,
+        "student_full_name": student.name,
+        "student_grade": student.grade,
+        "student_teacher": student.teacher,
+        "student_stream": student.stream,
+        "student_interest": student.interest_in_course(course)
+      })
