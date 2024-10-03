@@ -29,51 +29,80 @@ func main() {
 		return
 	}
 
-	// Open the output CSV file
-	fileName := fmt.Sprintf("output-%s.csv", time.Now().Format("2006-01-02-1504"))
-	outputFile, err := os.Create(fileName)
+	// Open the output CSV files
+	timestamp := time.Now().Format("2006-01-02-1504")
+	fileName := fmt.Sprintf("adults-%s.csv", timestamp)
+	adultsFile, err := os.Create(fileName)
 	if err != nil {
-		fmt.Println("Error creating output file:", err)
+		fmt.Println("Error creating adults file:", err)
 		return
 	}
-	defer outputFile.Close()
+	defer adultsFile.Close()
 
-	// Create a writer for the output CSV
-	writer := csv.NewWriter(outputFile)
-	defer writer.Flush()
+	fileName = fmt.Sprintf("students-%s.csv", timestamp)
+	studentsFile, err := os.Create(fileName)
+	if err != nil {
+		fmt.Println("Error creating students file:", err)
+		return
+	}
+	defer adultsFile.Close()
+
+	// Create writers for the output CSVs
+	adultsFileWriter := csv.NewWriter(adultsFile)
+	defer adultsFileWriter.Flush()
+
+	studentsFileWriter := csv.NewWriter(studentsFile)
+	defer studentsFileWriter.Flush()
 
 	// Get headers from the input CSV (first row)
 	headers := rows[0]
 
-	// removed column prefix "adult1_"
+	// remove column prefix "adult1_"
 	for i, colName := range headers {
 		headers[i] = strings.ReplaceAll(colName, "adult1_", "")
 	}
 
+	// remove column prefix "child1_"
+	for i, colName := range headers {
+		headers[i] = strings.ReplaceAll(colName, "child1_", "")
+	}
+
 	// Create header
-	adultHeader := []string{}
-	adultHeader = append(adultHeader, "adult_id")        // generated index for the adult
-	adultHeader = append(adultHeader, "household_id")    // generated index for the household
-	adultHeader = append(adultHeader, headers[53])       // adult name
-	adultHeader = append(adultHeader, "email")           // adult email
-	adultHeader = append(adultHeader, headers[54:70]...) // survey fields
-	adultHeader = append(adultHeader, "anything_else")   // other commend
-	adultHeader = moveColumns16to18After5(adultHeader)
-	err = writer.Write(adultHeader)
+	adultsHeader := []string{}
+	adultsHeader = append(adultsHeader, "adult_id")        // generated index for the adult
+	adultsHeader = append(adultsHeader, "household_id")    // generated index for the household
+	adultsHeader = append(adultsHeader, headers[53])       // adult name
+	adultsHeader = append(adultsHeader, "email")           // adult email
+	adultsHeader = append(adultsHeader, headers[54:70]...) // survey fields
+	adultsHeader = append(adultsHeader, "anything_else")   // other commend
+	adultsHeader = moveColumns16to18After5(adultsHeader)
+	err = adultsFileWriter.Write(adultsHeader)
+	if err != nil {
+		fmt.Println("Error writing headers:", err)
+		return
+	}
+	// Create header
+	studentsHeader := []string{}
+	studentsHeader = append(studentsHeader, "student_id")     // generated index for the adult
+	studentsHeader = append(studentsHeader, "household_id")   // generated index for the household
+	studentsHeader = append(studentsHeader, headers[2])       // student full name
+	studentsHeader = append(studentsHeader, headers[3:14]...) // interests
+	err = studentsFileWriter.Write(studentsHeader)
 	if err != nil {
 		fmt.Println("Error writing headers:", err)
 		return
 	}
 
 	// Process each row
-	personIndex := 0
+	adultIndex := 0
+	studentIndex := 0
 	householdIndex := 0
 	for _, row := range rows[1:] {
-		// Write columns 10 to 14 to the new CSV
-		personIndex++
+		// Write adult fields
+		adultIndex++
 		householdIndex++
 		adultRow := []string{}
-		adultRow = append(adultRow, strconv.Itoa(personIndex))
+		adultRow = append(adultRow, strconv.Itoa(adultIndex))
 		adultRow = append(adultRow, strconv.Itoa(householdIndex))
 		adultRow = append(adultRow, row[53])       // adult1 name
 		adultRow = append(adultRow, row[1])        // email from beginning of form
@@ -81,26 +110,82 @@ func main() {
 		adultRow = append(adultRow, row[89:90]...) // duplicate of 'anything else' since only one per household
 		adultRow[4] = replaceParticipationLevel(adultRow[4])
 		adultRow = moveColumns16to18After5(adultRow)
-		err = writer.Write(adultRow)
+		err = adultsFileWriter.Write(adultRow)
 		if err != nil {
 			fmt.Println("Error writing row:", err)
 			return
 		}
 
 		if row[70] == "Yes" {
-			personIndex++
+			adultIndex++
 			adultRow = []string{}
-			adultRow = append(adultRow, strconv.Itoa(personIndex))
+			adultRow = append(adultRow, strconv.Itoa(adultIndex))
 			adultRow = append(adultRow, strconv.Itoa(householdIndex))
 			adultRow = append(adultRow, row[71:90]...)
 			adultRow[4] = replaceParticipationLevel(adultRow[4])
 			adultRow = moveColumns16to18After5(adultRow)
-			err = writer.Write(adultRow)
+			err = adultsFileWriter.Write(adultRow)
 			if err != nil {
 				fmt.Println("Error writing additional row:", err)
 				return
 			}
 		}
+
+		// Write student fields
+		studentIndex++
+		studentRow := []string{}
+		studentRow = append(studentRow, strconv.Itoa(studentIndex))
+		studentRow = append(studentRow, strconv.Itoa(householdIndex))
+		studentRow = append(studentRow, row[2])       // full name
+		studentRow = append(studentRow, row[3:14]...) // interests
+		err = studentsFileWriter.Write(studentRow)
+		if err != nil {
+			fmt.Println("Error writing row:", err)
+			return
+		}
+
+		if row[14] == "Yes" {
+			studentIndex++
+			studentRow := []string{}
+			studentRow = append(studentRow, strconv.Itoa(studentIndex))
+			studentRow = append(studentRow, strconv.Itoa(householdIndex))
+			studentRow = append(studentRow, row[15])       // full name
+			studentRow = append(studentRow, row[16:27]...) // interests
+			err = studentsFileWriter.Write(studentRow)
+			if err != nil {
+				fmt.Println("Error writing row:", err)
+				return
+			}
+		}
+
+		if row[27] == "Yes" {
+			studentIndex++
+			studentRow := []string{}
+			studentRow = append(studentRow, strconv.Itoa(studentIndex))
+			studentRow = append(studentRow, strconv.Itoa(householdIndex))
+			studentRow = append(studentRow, row[28])       // full name
+			studentRow = append(studentRow, row[29:40]...) // interests
+			err = studentsFileWriter.Write(studentRow)
+			if err != nil {
+				fmt.Println("Error writing row:", err)
+				return
+			}
+		}
+
+		if row[40] == "Yes" {
+			studentIndex++
+			studentRow := []string{}
+			studentRow = append(studentRow, strconv.Itoa(studentIndex))
+			studentRow = append(studentRow, strconv.Itoa(householdIndex))
+			studentRow = append(studentRow, row[41])       // full name
+			studentRow = append(studentRow, row[42:53]...) // interests
+			err = studentsFileWriter.Write(studentRow)
+			if err != nil {
+				fmt.Println("Error writing row:", err)
+				return
+			}
+		}
+
 	}
 
 	fmt.Println("CSV processing completed successfully.")
@@ -118,17 +203,19 @@ func moveColumns16to18After5(row []string) []string {
 	}
 
 	// Cut elements
-	cols20to22 := row[cutFrom : cutTo+1]
+	cutColumns := row[cutFrom : cutTo+1]
 
 	// Keep the part of the slice before the cut elements
 	// And also the part after the cut elements
-	sliceBefore := row[:cutFrom]
-	sliceAfter := row[cutTo+1:]
+	sliceBeforeInsert := row[:insertInto]
+	sliceAfterInsert := row[insertInto:cutFrom]
+	sliceAfterCut := row[cutTo+1:]
 
-	result := sliceBefore[:insertInto]
-	result = append(result, cols20to22...)
-	result = append(result, sliceBefore[:insertInto]...)
-	result = append(result, sliceAfter...)
+	result := make([]string, 0, len(row))
+	result = append(result, sliceBeforeInsert...)
+	result = append(result, cutColumns...)
+	result = append(result, sliceAfterInsert...)
+	result = append(result, sliceAfterCut...)
 
 	return result
 }
