@@ -78,6 +78,7 @@ class Student:
   grade: int
   teacher: str
   stream: str
+  course: "Course"
   _preferences: List[Preference]
   preferences_by_interest: Dict[Interest, List[Preference]]
   
@@ -86,6 +87,7 @@ class Student:
     self.grade = int(row['grade'])
     self.teacher = row['teacher']
     self.stream = row['stream']
+    self.course = None
 
   @property
   def preferences(self):
@@ -113,7 +115,8 @@ class Student:
     nope = self.preferences_by_interest[Interest.NOPE]
     return very + maybe + nope
   
-  def interest_in_course(self, course: "Course"):
+  def interest_in_course(self, course: "Course" = None):
+    course = course or self.course
     for pref in self.preferences:
       if pref.area == course.area:
         return pref.level
@@ -153,6 +156,7 @@ class Course:
     return True
 
   def assign(self, student: Student):
+    student.course = self
     self.students.append(student)
     self.capacity -= 1
 
@@ -195,7 +199,7 @@ with open(student_preferences_path) as csvfile:
       KNOWN_AREAS.add(area)
       DEFAULT_PREFERENCES.append(Preference(area, "Very Interested"))
 
-  # Generate a Prefererence for every signup.
+  # Generate a list of Prefererences for every signup.
   for row in reader:
     preferences = []
     for key, value in row.items():
@@ -281,9 +285,12 @@ def assign_student(student: Student):
   DEFAULT_COURSE.assign(student)
   return DEFAULT_COURSE
 
+# Now assign each student to a course.
 for student in students:
-  course = assign_student(student)
-  print(f"Assigning {student} to {course}")
+  # Some students may have been manually assigned courses, if so, skip them.
+  if not student.course:
+    course = assign_student(student)
+    print(f"Assigning {student} to {course}")
 
 # And we're done.
 # Print out the assignments for debugging.
@@ -292,7 +299,7 @@ print("Final Assignments")
 for course in courses:
   print(f"{course.name} ({len(course.students)}/{course.max_capacity})")
   for student in course.students:
-    print(f"- {student} ({student.interest_in_course(course).name})")
+    print(f"- {student} ({student.interest_in_course().name})")
 
 # Finally write out the assignments as a CSV
 with open(final_assignments_path, "w") as csvfile:
@@ -310,7 +317,7 @@ with open(final_assignments_path, "w") as csvfile:
         "student_grade": student.grade,
         "student_teacher": student.teacher,
         "student_stream": student.stream,
-        "student_interest": student.interest_in_course(course)
+        "student_interest": student.interest_in_course()
       })
 
 print(f"Wrote assignments to {final_assignments_path}")
