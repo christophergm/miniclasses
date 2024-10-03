@@ -1,3 +1,4 @@
+import argparse
 from collections import defaultdict
 import os
 import csv
@@ -7,13 +8,20 @@ from random import shuffle
 
 join_path = os.path.join
 
-data_dir = join_path(os.path.dirname(__file__), '../files_test')
-output_dir = join_path(os.path.dirname(__file__), '../output')
+parser = argparse.ArgumentParser(
+  prog='OPTO Miniclass Sorting Hat',
+  description='Sorts students into appropriate classes',
+)
+parser.add_argument('data_dir', help="Directory containing input files", nargs='?')
+parser.add_argument('--out', help="Path to write assignments to")
+parser.add_argument('--session', help="Session number", default=1, type=int)
 
-CURRENT_SESSION = 1
+args = parser.parse_args()
 
-# TODO
-# - Paths are hard coded (this can wait)
+data_dir = args.data_dir or join_path(os.path.dirname(__file__), '../files_test')
+final_assignments_path = args.out or join_path(os.path.dirname(__file__), '../output/final_assignments.csv')
+
+CURRENT_SESSION = args.session
 
 # List of student preferences
 # CSV columns: student_full_name,student_interest_games_puzzles,student_interest_arts_crafts,student_interest_performing_arts,student_interest_cooking,student_interest_athletics,student_interest_building_making,student_interest_gardening,student_interest_science_nature,student_interest_community,student_interest_fabric_arts,student_interest_book_club
@@ -30,9 +38,6 @@ course_list_path =  join_path(data_dir,'class_catalog.csv')
 # Manual assignments
 # CSV columns: class_id,student_full_name
 manual_assignment_path = join_path(data_dir,'class_assignments_manual.csv')
-
-# Final assignments (output)
-final_assignments_path = join_path(output_dir,'final_assignments.csv')
 
 class Interest(StrEnum): 
   VERY = "Very Interested"
@@ -307,3 +312,5 @@ with open(final_assignments_path, "w") as csvfile:
         "student_stream": student.stream,
         "student_interest": student.interest_in_course(course)
       })
+
+print(f"Wrote assignments to {final_assignments_path}")
