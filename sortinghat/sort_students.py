@@ -1,19 +1,18 @@
 from collections import defaultdict
 import os
 import csv
-from typing import Any, Dict, List, Set
-from enum import IntEnum, StrEnum
+from typing import Dict, List, Set
+from enum import StrEnum
 from random import shuffle
 
 join_path = os.path.join
 
 data_dir = join_path(os.path.dirname(__file__), '../files_test')
+output_dir = join_path(os.path.dirname(__file__), '../output')
 
 CURRENT_SESSION = 1
 
 # TODO
-# - Manual assignments are not honored yet.
-# - We aren't outputing the CSV of assignments yet
 # - Paths are hard coded (this can wait)
 
 # List of student preferences
@@ -27,6 +26,13 @@ student_list_path =  join_path(data_dir,'student_list.csv')
 # List of all courses
 # CSV columns: id,session,name,interest_area,grade_min,grade_max,student_capacity_max
 course_list_path =  join_path(data_dir,'class_catalog.csv')
+
+# Manual assignments
+# CSV columns: class_id,student_full_name
+manual_assignment_path = join_path(data_dir,'class_assignments_manual.csv')
+
+# Final assignments (output)
+final_assignments_path = join_path(output_dir,'final_assignments.csv')
 
 class Interest(StrEnum): 
   VERY = "Very Interested"
@@ -232,7 +238,21 @@ with open(course_list_path) as csvfile:
       courses_by_area[course.area].append(course)
 
 
-print(f"Assinging {len(students)} to {len(courses)} courses.")
+print(f"Assigning {len(students)} to {len(courses)} courses.")
+
+# First assign any manual assignments
+with open(manual_assignment_path) as csvfile:
+  reader = csv.DictReader(csvfile)
+  for row in reader:
+    manual_course_id = row["class_id"]
+    course = next((c for c in courses if c.id == manual_course_id), None)
+    assert course, f"Could not manually assign course {manual_course_id}"
+
+    manual_student_name = row["student_full_name"]
+    student = next((s for s in students if s.name == manual_student_name), None)
+    assert course, f"Could not manually assign student {manual_student_name}"
+    
+    course.assign(student)
 
 # Sort the students by the pickiest (fewest VERY interested areas)
 students.sort(key=Student.get_preference_counts)
@@ -270,7 +290,7 @@ for course in courses:
     print(f"- {student} ({student.interest_in_course(course).name})")
 
 # Finally write out the assignments as a CSV
-with open("final_assignments.csv", "w") as csvfile:
+with open(final_assignments_path, "w") as csvfile:
   fields = ["class_name","class_session","class_id","student_full_name","student_grade","student_teacher","student_stream","student_interest"]
   writer = csv.DictWriter(csvfile, fields)
 
