@@ -1,20 +1,27 @@
+import argparse
 from collections import defaultdict
 import os
 import csv
-from typing import Any, Dict, List, Set
-from enum import IntEnum
+from typing import Dict, List, Set
+from enum import StrEnum
 from random import shuffle
 
 join_path = os.path.join
 
-data_dir = join_path(os.path.dirname(__file__), '../files_test')
+parser = argparse.ArgumentParser(
+  prog='OPTO Miniclass Sorting Hat',
+  description='Sorts students into appropriate classes',
+)
+parser.add_argument('data_dir', help="Directory containing input files", nargs='?')
+parser.add_argument('--out', help="Path to write assignments to")
+parser.add_argument('--session', help="Session number", default=1, type=int)
 
-CURRENT_SESSION = 1
+args = parser.parse_args()
 
-# TODO
-# - Manual assignments are not honored yet.
-# - We aren't outputing the CSV of assignments yet
-# - Paths are hard coded (this can wait)
+data_dir = args.data_dir or join_path(os.path.dirname(__file__), '../files_test')
+final_assignments_path = args.out or join_path(os.path.dirname(__file__), '../output/final_assignments.csv')
+
+CURRENT_SESSION = args.session
 
 # List of student preferences
 # CSV columns: student_full_name,student_interest_games_puzzles,student_interest_arts_crafts,student_interest_performing_arts,student_interest_cooking,student_interest_athletics,student_interest_building_making,student_interest_gardening,student_interest_science_nature,student_interest_community,student_interest_fabric_arts,student_interest_book_club
@@ -28,10 +35,30 @@ student_list_path =  join_path(data_dir,'student_list.csv')
 # CSV columns: id,session,name,interest_area,grade_min,grade_max,student_capacity_max
 course_list_path =  join_path(data_dir,'class_catalog.csv')
 
-class Interest(IntEnum): 
-  VERY = 0
-  MAYBE = 1
-  NOPE = 2
+# Manual assignments
+# CSV columns: class_id,student_full_name
+manual_assignment_path = join_path(data_dir,'class_assignments_manual.csv')
+
+class Interest(StrEnum): 
+  VERY = "Very Interested"
+  MAYBE = "Interested"
+  NOPE = "Not at all interested"
+
+  def from_label(level: str):
+    if level == Interest.VERY:
+      return Interest.VERY
+    elif level == Interest.MAYBE:
+      return Interest.MAYBE
+    else:
+      return Interest.NOPE
+
+  def to_label(self):
+    if self == Interest.VERY:
+      return "Very Interested"
+    elif self == Interest.MAYBE:
+      return "Interested"
+    else:
+      return "Not at all interested"
 
 
 class Preference:
@@ -40,12 +67,7 @@ class Preference:
 
   def __init__(self, area: str, level: str):
     self.area = area
-    if level == "Very Interested":
-      self.level = Interest.VERY
-    elif level == "Interested":
-      self.level = Interest.MAYBE
-    else:
-      self.level = Interest.NOPE
+    self.level = Interest.from_label(level)
   
   def __repr__(self) -> str:
     return f"{self.area} {self.level.name}"
@@ -54,12 +76,18 @@ class Preference:
 class Student:
   name: str
   grade: int
+  teacher: str
+  stream: str
+  course: "Course"
   _preferences: List[Preference]
   preferences_by_interest: Dict[Interest, List[Preference]]
   
   def __init__(self, row: Dict[str, str]):
     self.name = f"{row['first_name']} {row['last_name']}"
     self.grade = int(row['grade'])
+    self.teacher = row['teacher']
+    self.stream = row['stream']
+    self.course = None
 
   @property
   def preferences(self):
@@ -87,7 +115,8 @@ class Student:
     nope = self.preferences_by_interest[Interest.NOPE]
     return very + maybe + nope
   
-  def interest_in_course(self, course: "Course"):
+  def interest_in_course(self, course: "Course" = None):
+    course = course or self.course
     for pref in self.preferences:
       if pref.area == course.area:
         return pref.level
@@ -98,6 +127,7 @@ class Student:
 
 
 class Course:
+  id: str
   name: str
   area: str
   grade_min: int
@@ -107,6 +137,7 @@ class Course:
   students: List[Student]
   
   def __init__(self, row: Dict[str, str]):
+    self.id = row['id']
     self.name = row['name']
     self.area = row['interest_area']
     self.grade_min = int(row['grade_min'])
@@ -125,6 +156,7 @@ class Course:
     return True
 
   def assign(self, student: Student):
+    student.course = self
     self.students.append(student)
     self.capacity -= 1
 
@@ -167,7 +199,7 @@ with open(student_preferences_path) as csvfile:
       KNOWN_AREAS.add(area)
       DEFAULT_PREFERENCES.append(Preference(area, "Very Interested"))
 
-  # Generate a Prefererence for every signup.
+  # Generate a list of Prefererences for every signup.
   for row in reader:
     preferences = []
     for key, value in row.items():
@@ -195,6 +227,7 @@ with open(student_list_path) as csvfile:
 
 # Finally, read in all the courses.
 DEFAULT_COURSE = Course({
+  "id": "",
   "name": "Fallback",
   "interest_area": "none",
   "grade_min": 0,
@@ -214,7 +247,21 @@ with open(course_list_path) as csvfile:
       courses_by_area[course.area].append(course)
 
 
-print(f"Assinging {len(students)} to {len(courses)} courses.")
+print(f"Assigning {len(students)} to {len(courses)} courses.")
+
+# First assign any manual assignments
+with open(manual_assignment_path) as csvfile:
+  reader = csv.DictReader(csvfile)
+  for row in reader:
+    manual_course_id = row["class_id"]
+    course = next((c for c in courses if c.id == manual_course_id), None)
+    assert course, f"Could not manually assign course {manual_course_id}"
+
+    manual_student_name = row["student_full_name"]
+    student = next((s for s in students if s.name == manual_student_name), None)
+    assert course, f"Could not manually assign student {manual_student_name}"
+    
+    course.assign(student)
 
 # Sort the students by the pickiest (fewest VERY interested areas)
 students.sort(key=Student.get_preference_counts)
@@ -238,12 +285,39 @@ def assign_student(student: Student):
   DEFAULT_COURSE.assign(student)
   return DEFAULT_COURSE
 
+# Now assign each student to a course.
 for student in students:
-  course = assign_student(student)
-  print(f"Assigning {student} to {course}")
+  # Some students may have been manually assigned courses, if so, skip them.
+  if not student.course:
+    course = assign_student(student)
+    print(f"Assigning {student} to {course}")
 
-# And we're done.  Now we just need to print out the courses!
+# And we're done.
+# Print out the assignments for debugging.
+print()
+print("Final Assignments")
 for course in courses:
   print(f"{course.name} ({len(course.students)}/{course.max_capacity})")
   for student in course.students:
-    print(f"- {student} ({student.interest_in_course(course).name})")
+    print(f"- {student} ({student.interest_in_course().name})")
+
+# Finally write out the assignments as a CSV
+with open(final_assignments_path, "w") as csvfile:
+  fields = ["class_name","class_session","class_id","student_full_name","student_grade","student_teacher","student_stream","student_interest"]
+  writer = csv.DictWriter(csvfile, fields)
+
+  writer.writeheader()
+  for course in courses:
+    for student in course.students:
+      writer.writerow({
+        "class_name": course.name,
+        "class_session": CURRENT_SESSION,
+        "class_id": course.id,
+        "student_full_name": student.name,
+        "student_grade": student.grade,
+        "student_teacher": student.teacher,
+        "student_stream": student.stream,
+        "student_interest": student.interest_in_course()
+      })
+
+print(f"Wrote assignments to {final_assignments_path}")

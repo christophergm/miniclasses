@@ -1,6 +1,7 @@
 .DS_Store
 .venv
 .vscode
+output/*
 
 # Binaries for programs and plugins
 *.exe
