@@ -3,3 +3,15 @@
 .vscode
 output/*
 input/*
+
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Golang Test results
+*.test
+
+# Default to CSV data files not being tracked
+*.csv
