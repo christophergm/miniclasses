@@ -39,6 +39,9 @@ course_list_path =  join_path(data_dir,'class_catalog.csv')
 # CSV columns: class_id,student_full_name
 manual_assignment_path = join_path(data_dir,'class_assignments_manual.csv')
 
+# Skip assignments: For any student that was accidentally included
+skip_assignment_path = join_path(data_dir,'skip_assignments_manual.csv')
+
 class Interest(StrEnum): 
   VERY = "Very Interested"
   MAYBE = "Interested"
@@ -83,7 +86,9 @@ class Student:
   preferences_by_interest: Dict[Interest, List[Preference]]
   
   def __init__(self, row: Dict[str, str]):
-    self.name = f"{row['first_name']} {row['last_name']}"
+    if "first_name" in row and "last_name" in row:
+      self.name = f"{row['first_name'].strip()} {row['last_name'].strip()}"
+
     self.grade = int(row['grade'])
     self.teacher = row['teacher']
     self.stream = row['stream']
@@ -150,7 +155,10 @@ class Course:
     if self.capacity <= 0:
       return False
     
-    if student.grade < self.grade_min or student.grade > self.grade_max:
+    if student.grade < self.grade_min:
+      return False
+    
+    if student.grade > self.grade_max:
       return False
     
     return True
@@ -164,11 +172,11 @@ class Course:
     return f"{self.name} ({self.area})"
 
 
-def interest_area(column_name: str, prefix="student_interest_"):
+def interest_area(column_name: str, prefix="interest_"):
   """
   Helper to pluck out interest areas from column names
   
-  The expected format is "student_interest_computer_typing"
+  The expected format is "interest_computer_typing"
   """
   if column_name.startswith(prefix):
         return column_name.replace(prefix, "")
@@ -182,6 +190,14 @@ def interest_area(column_name: str, prefix="student_interest_"):
 preferences_by_student: Dict[str, List[Preference]]  = {}
 DEFAULT_PREFERENCES = []
 KNOWN_AREAS: Set[str] = set()
+
+skip_assignments = {}
+with open(skip_assignment_path) as csvfile:
+  reader = csv.DictReader(csvfile)
+
+  for row in reader:
+    name = row['full_name'].strip()
+    skip_assignments[name] = True
 
 with open(student_preferences_path) as csvfile:
   reader = csv.DictReader(csvfile)
@@ -201,13 +217,16 @@ with open(student_preferences_path) as csvfile:
 
   # Generate a list of Prefererences for every signup.
   for row in reader:
+    name = row['full_name'].strip()
+    if name in skip_assignments:
+      continue
+
     preferences = []
     for key, value in row.items():
       area = interest_area(key)
       if area:
         preferences.append(Preference(area, value))
     
-    name = row['student_full_name']
     preferences_by_student[name] = preferences
 
 # Next we read in the students and then match them up with their preferences
@@ -216,14 +235,25 @@ with open(student_list_path) as csvfile:
   reader = csv.DictReader(csvfile)
   for row in reader:
     student = Student(row)
-    preferences = preferences_by_student.get(student.name)
-    if preferences:
-      student.preferences = preferences
+
+    if student.name in preferences_by_student:
+      # Remove the preference from the list
+      student.preferences = preferences_by_student.pop(student.name)
     else:
       print(f"No preferences for {student.name}")
       student.preferences = DEFAULT_PREFERENCES[:]
 
     students.append(student)
+
+for name in preferences_by_student:
+  print("Preference without student:", name)
+
+if len(preferences_by_student) > 0:
+  print(preferences_by_student)
+  print()
+  print("Please clean the unmatched preferences before sorting")
+  print(f"If the student was assigned by mistake add them to {skip_assignment_path}")
+  exit(1)
 
 # Finally, read in all the courses.
 DEFAULT_COURSE = Course({
@@ -257,9 +287,9 @@ with open(manual_assignment_path) as csvfile:
     course = next((c for c in courses if c.id == manual_course_id), None)
     assert course, f"Could not manually assign course {manual_course_id}"
 
-    manual_student_name = row["student_full_name"]
+    manual_student_name = row["student_full_name"].strip()
     student = next((s for s in students if s.name == manual_student_name), None)
-    assert course, f"Could not manually assign student {manual_student_name}"
+    assert student, f"Could not manually assign student {manual_student_name}"
     
     course.assign(student)
 
