@@ -3,8 +3,11 @@ from collections import defaultdict
 import os
 import csv
 from typing import Dict, List, Set
-from enum import StrEnum
+from enum import Enum
 from random import shuffle
+
+class StrEnum(str, Enum):
+    pass
 
 join_path = os.path.join
 
@@ -202,7 +205,7 @@ with open(skip_assignment_path) as csvfile:
 with open(student_preferences_path) as csvfile:
   reader = csv.DictReader(csvfile)
 
-  # We populate the DEFAULT_PREFERENCES form the header row.
+  # We populate the DEFAULT_PREFERENCES from the header row.
   #
   # We assume that they were so wildly interested by every area that
   # they simply couldn't decide. This simplifies the algorithm by sorting
