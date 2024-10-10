@@ -39,7 +39,7 @@ func main() {
 	}
 	defer adultsFile.Close()
 
-	fileName = fmt.Sprintf("students_preferences-%s.csv", timestamp)
+	fileName = fmt.Sprintf("student_preferences-%s.csv", timestamp)
 	studentsFile, err := os.Create(fileName)
 	if err != nil {
 		fmt.Println("Error creating students file:", err)

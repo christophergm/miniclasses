@@ -27,7 +27,7 @@ func main() {
 	defer file1.Close()
 
 	// Open the second CSV file
-	file2, err := os.Open("students_preferences.csv")
+	file2, err := os.Open("student_preferences.csv")
 	if err != nil {
 		fmt.Println("Error opening second file:", err)
 		return

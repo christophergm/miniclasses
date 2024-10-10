@@ -2,7 +2,16 @@
 This is a simple script for sorting students into mini classes.
 
 ## Usage
-To generate a sorting, run sort_students.
+Step 1: Setup input CSV files (see source code for required columns)
+
+
+* `student_preferences.csv` - List of student preferences
+* `student_list.csv` - List of all students
+* `class_catalog.csv` - List of all courses
+* `class_assignments_manual.csv` - Manual class assignments
+* `skip_assignments_manual.csv` - Exclude some students from the student list (e.g. wrong grade)
+
+Step 2: Generate a sorting by running `sort_students`.
 
 ```shell
 $ python sort_students.py
