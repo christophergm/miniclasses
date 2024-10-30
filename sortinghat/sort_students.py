@@ -10,6 +10,7 @@ class StrEnum(str, Enum):
     pass
 
 join_path = os.path.join
+path_exists = os.path.exists
 
 parser = argparse.ArgumentParser(
   prog='OPTO Miniclass Sorting Hat',
@@ -38,9 +39,13 @@ student_list_path =  join_path(data_dir,'student_list.csv')
 # CSV columns: id,session,name,interest_area,grade_min,grade_max,student_capacity_max
 course_list_path =  join_path(data_dir,'class_catalog.csv')
 
-# Manual assignments
+# Manual assignments: Automatically put these students in a given class
 # CSV columns: class_id,student_full_name
 manual_assignment_path = join_path(data_dir,'class_assignments_manual.csv')
+
+# Manual exclusions: Ensure these student are not put in a given class
+# CSV columns: class_id,student_full_name
+manual_exclusions_path = join_path(data_dir,'class_exclusions_manual.csv')
 
 # Skip assignments: For any student that was accidentally included
 skip_assignment_path = join_path(data_dir,'skip_assignments_manual.csv')
@@ -195,12 +200,13 @@ DEFAULT_PREFERENCES = []
 KNOWN_AREAS: Set[str] = set()
 
 skip_assignments = {}
-with open(skip_assignment_path) as csvfile:
-  reader = csv.DictReader(csvfile)
+if path_exists(skip_assignment_path):
+  with open(skip_assignment_path) as csvfile:
+    reader = csv.DictReader(csvfile)
 
-  for row in reader:
-    name = row['full_name'].strip()
-    skip_assignments[name] = True
+    for row in reader:
+      name = row['full_name'].strip()
+      skip_assignments[name] = True
 
 with open(student_preferences_path) as csvfile:
   reader = csv.DictReader(csvfile)
@@ -283,18 +289,33 @@ with open(course_list_path) as csvfile:
 print(f"Assigning {len(students)} to {len(courses)} courses.")
 
 # First assign any manual assignments
-with open(manual_assignment_path) as csvfile:
-  reader = csv.DictReader(csvfile)
-  for row in reader:
-    manual_course_id = row["class_id"]
-    course = next((c for c in courses if c.id == manual_course_id), None)
-    assert course, f"Could not manually assign course {manual_course_id}"
+if path_exists(manual_assignment_path):
+  with open(manual_assignment_path) as csvfile:
+    reader = csv.DictReader(csvfile)
+    for row in reader:
+      manual_course_id = row["class_id"]
+      course = next((c for c in courses if c.id == manual_course_id), None)
+      assert course, f"Could not manually assign course {manual_course_id}"
 
-    manual_student_name = row["student_full_name"].strip()
-    student = next((s for s in students if s.name == manual_student_name), None)
-    assert student, f"Could not manually assign student {manual_student_name}"
-    
-    course.assign(student)
+      manual_student_name = row["student_full_name"].strip()
+      student = next((s for s in students if s.name == manual_student_name), None)
+      assert student, f"Could not manually assign student {manual_student_name}"
+      
+      course.assign(student)
+
+# Record any exlcusions: classes we shouldn't put students into.
+# This helps ensure people aren't in the same class multiple times if it's too similar
+exclusions: Dict[str, List[Course]] = defaultdict(list)
+if path_exists(manual_exclusions_path):
+  with open(manual_exclusions_path) as csvfile:
+    reader = csv.DictReader(csvfile)
+    for row in reader:
+      exclusion_course_id = row["class_id"]
+      course = next((c for c in courses if c.id == exclusion_course_id), None)
+      assert course, f"Could not manually exclude course {manual_course_id}"
+
+      student_name = row["student_full_name"].strip()
+      exclusions[student_name].append(course)
 
 # Sort the students by the pickiest (fewest VERY interested areas)
 students.sort(key=Student.get_preference_counts)
@@ -310,7 +331,7 @@ def assign_student(student: Student):
     shuffle(candidate_courses)
 
     for course in candidate_courses:
-      if course.available_to(student):
+      if course.available_to(student) and not course in exclusions[student.name]:
         course.assign(student)
         return course
       
