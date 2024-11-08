@@ -22,6 +22,7 @@ type AdultClassAssignment struct {
 	ClassID  string
 	FullName string
 	Email    string
+	Note     string
 }
 
 type FinalAssignment struct {
@@ -90,6 +91,7 @@ func readAdultAssignments(file string) ([]AdultClassAssignment, error) {
 			ClassID:  record[0],
 			FullName: record[1],
 			Email:    record[2],
+			Note:     record[3],
 		})
 	}
 

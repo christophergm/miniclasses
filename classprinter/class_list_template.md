@@ -9,10 +9,10 @@
 
 ### Adults
 {{range .Adults}}
-- {{.FullName}} ({{.Email}})
+- {{.FullName}} ({{.Email}}) {{.Note}}
 {{end}}
 
 ### Students
 {{range .Students}}
-- **{{.StudentFullName}}** - Grade {{.StudentGrade}}, {{.StudentTeacher}} ({{.StudentStream}})
+1. **{{.StudentFullName}}** - Grade {{.StudentGrade}}, {{.StudentTeacher}} ({{.StudentStream}})
 {{end}}
